@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Block Blaster</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+margin:0;
+background:black;
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+font-family:Arial;
+color:white;
+flex-direction:column;
+}
+
+canvas{
+background:#111;
+border:2px solid #fff;
+touch-action:none;
+}
+
+#restartBtn{
+margin-top:15px;
+padding:10px 20px;
+font-size:16px;
+background:dodgerblue;
+color:white;
+border:none;
+border-radius:6px;
+display:none;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game" width="360" height="600"></canvas>
+<button id="restartBtn">Restart Game</button>
+
+<script>
+
+// CANVAS
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const restartBtn = document.getElementById("restartBtn");
+
+// GAME STATS
+let score = 0;
+let level = 1;
+let lives = 3;
+let gameOver = false;
+
+// PADDLE
+let paddle = {
+width:80,
+height:12,
+x:canvas.width/2-40,
+y:canvas.height-30,
+speed:6
+};
+
+// BALL
+let ball = {
+size:10,
+x:canvas.width/2,
+y:canvas.height/2,
+dx:4,
+dy:-4
+};
+
+// BLOCKS
+let blocks = [];
+
+let rows = 5;
+let cols = 6;
+
+let blockWidth = 50;
+let blockHeight = 18;
+let padding = 8;
+let offsetTop = 40;
+let offsetLeft = 20;
+
+const colors=["#22c55e","#facc15","#fb923c","#f87171"];
+
+// CREATE BLOCKS
+function createBlocks(){
+
+blocks=[];
+
+for(let r=0;r<rows;r++){
+
+for(let c=0;c<cols;c++){
+
+blocks.push({
+x:offsetLeft+c*(blockWidth+padding),
+y:offsetTop+r*(blockHeight+padding),
+broken:false,
+color:colors[r%colors.length]
+});
+
+}
+
+}
+
+}
+
+createBlocks();
+
+// CONTROLS
+let left=false;
+let right=false;
+
+document.addEventListener("keydown",e=>{
+
+if(e.key==="ArrowLeft") left=true;
+if(e.key==="ArrowRight") right=true;
+
+if(gameOver && e.key==="r"){
+resetGame();
+}
+
+});
+
+document.addEventListener("keyup",e=>{
+
+if(e.key==="ArrowLeft") left=false;
+if(e.key==="ArrowRight") right=false;
+
+});
+
+// MOBILE TOUCH
+canvas.addEventListener("touchmove",e=>{
+
+let rect=canvas.getBoundingClientRect();
+let touchX=e.touches[0].clientX;
+
+paddle.x = touchX - rect.left - paddle.width/2;
+
+});
+
+// UPDATE
+function update(){
+
+if(gameOver) return;
+
+// MOVE PADDLE
+if(left && paddle.x>0) paddle.x-=paddle.speed;
+if(right && paddle.x<canvas.width-paddle.width) paddle.x+=paddle.speed;
+
+// MOVE BALL
+ball.x+=ball.dx;
+ball.y+=ball.dy;
+
+// WALL COLLISION
+if(ball.x<=0 || ball.x>=canvas.width-ball.size){
+ball.dx*=-1;
+}
+
+if(ball.y<=0){
+ball.dy*=-1;
+}
+
+// PADDLE COLLISION
+if(
+ball.y+ball.size>=paddle.y &&
+ball.x>paddle.x &&
+ball.x<paddle.x+paddle.width
+){
+ball.dy*=-1;
+}
+
+// BLOCK COLLISION
+blocks.forEach(block=>{
+
+if(!block.broken &&
+ball.x>block.x &&
+ball.x<block.x+blockWidth &&
+ball.y>block.y &&
+ball.y<block.y+blockHeight){
+
+block.broken=true;
+
+ball.dy*=-1;
+
+// SPEED UP BALL
+ball.dx*=1.02;
+ball.dy*=1.02;
+
+// LIMIT SPEED
+if(ball.dx>10) ball.dx=10;
+if(ball.dy>10) ball.dy=10;
+
+score+=10;
+
+}
+
+});
+
+// LEVEL COMPLETE
+if(blocks.every(b=>b.broken)){
+
+level++;
+
+// slightly harder
+if(paddle.width>40) paddle.width-=4;
+
+ball.dx*=1.1;
+ball.dy*=1.1;
+
+// recreate blocks
+createBlocks();
+
+}
+
+// BALL FALL
+if(ball.y>canvas.height){
+
+lives--;
+
+if(lives>0){
+
+ball.x=canvas.width/2;
+ball.y=canvas.height/2;
+
+ball.dx=4+level*0.5;
+ball.dy=-4-level*0.5;
+
+}else{
+
+gameOver=true;
+restartBtn.style.display="block";
+
+}
+
+}
+
+}
+
+// DRAW
+function draw(){
+
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+// PADDLE
+ctx.fillStyle="dodgerblue";
+ctx.fillRect(paddle.x,paddle.y,paddle.width,paddle.height);
+
+// BALL
+ctx.fillStyle="white";
+ctx.fillRect(ball.x,ball.y,ball.size,ball.size);
+
+// BLOCKS
+blocks.forEach(block=>{
+
+if(!block.broken){
+
+ctx.fillStyle=block.color;
+
+ctx.fillRect(
+block.x,
+block.y,
+blockWidth,
+blockHeight
+);
+
+}
+
+});
+
+// SCORE
+ctx.fillStyle="yellow";
+ctx.font="16px Arial";
+ctx.fillText("Score: "+score,10,20);
+
+// LEVEL
+ctx.fillStyle="cyan";
+ctx.fillText("Level: "+level,250,20);
+
+// LIVES
+ctx.fillStyle="white";
+ctx.fillText("Lives: "+lives,140,20);
+
+// GAME OVER
+if(gameOver){
+
+ctx.fillStyle="red";
+ctx.font="30px Arial";
+ctx.fillText("GAME OVER",80,300);
+
+}
+
+}
+
+// GAME LOOP
+function loop(){
+
+update();
+draw();
+
+requestAnimationFrame(loop);
+
+}
+
+// RESET
+function resetGame(){
+
+score=0;
+level=1;
+lives=3;
+gameOver=false;
+
+paddle.width=80;
+
+ball.x=canvas.width/2;
+ball.y=canvas.height/2;
+
+ball.dx=4;
+ball.dy=-4;
+
+restartBtn.style.display="none";
+
+createBlocks();
+
+}
+
+restartBtn.onclick=function(){
+resetGame();
+};
+
+loop();
+
+</script>
+</body>
+</html>
